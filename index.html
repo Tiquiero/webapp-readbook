@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,minimal-ui">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="stylesheet" type="text/css" href="css/reset.css">
+    <link rel="stylesheet" type="text/css" href="css/style.css">
+</head>
+<body>
+
+    <div id="root" class="container">
+        <div class="m-artical-action">
+            <div class="artical-action-mid" id="action_mid"></div>
+        </div>
+
+        <div id="top_nav" class="top-nav" style="display: none;">
+            <div class="icon-back"></div>
+            <div class="nav-title">返回书架</div>
+        </div>
+
+        <div id="fition_chapter_title"></div>
+        <div id="fiction_container" class="m-read-content">
+
+        </div>
+
+        <div id="" class="m-button-bar">
+            <ul class="u-tab">
+                <li id="prev_button">上一章</li>
+                <li id="next_button">下一章</li>
+            </ul>
+        </div>
+
+        <div class="nav-pannel-bk font-container" style="display: none;"></div>
+        <div class="nav-pannel font-container" id="font-container" style="display: none;">
+            <div class="child-mod">
+                <span>字号</span>
+                <button id="large-font" class="font-size-button">大</button>
+                <button id="small-font" class="font-size-button">小</button>
+            </div>
+            <div class="child-mod">
+                <span>背景</span>
+                <div id="first_day" class="bk-container bk-container-white" data-background="#f7eee5">
+                    <div class="bk-container-current" style="display: none;"></div>
+                </div>
+                <div class="bk-container bk-container-paple" data-background="#e9dfc7">
+                    <div class="bk-container-current" style="display: none;"></div>
+                </div>
+                <div class="bk-container bk-container-grey" data-background="#a4a4a4">
+                    <div class="bk-container-current" style="display: none;"></div>
+                </div>
+                <div class="bk-container bk-container-green" data-background="#cdefce">
+                    <div class="bk-container-current" style="display: none;"></div>
+                </div>
+                <div id="last_night" class="bk-container bk-container-blue" data-background="#283548">
+                    <div class="bk-container-current" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="bottom_nav" style="display:none">
+            <div class="item" id="menu_button">
+                <div class="item-warp">
+                    <div class="icon icon-menu"></div>
+                    <div class="icon-text">
+                        目录
+                    </div>
+                </div>
+            </div>
+            <div class="item" id="font-button">
+                <div class="item-warp">
+                    <div class="icon icon-ft"></div>
+                    <div class="icon-text">
+                        字体
+                    </div>
+                </div>
+            </div>
+            <div class="item" id="night-day-button">
+                <div class="item-warp" style="display:none" id="day_icon">
+                    <div class="icon icon-day"></div>
+                    <div class="icon-text">
+                        白天
+                    </div>
+                </div>
+                <div class="item-warp" style="display:none" id="night_icon">
+                    <div class="icon icon-night"></div>
+                    <div class="icon-text">
+                        夜间
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="lib/zepto.min.js"></script>
+    <script>
+        window.jQuery = $;
+    </script>
+    <script src="js/jquery.base64.js"></script>
+    <script src="js/jquery.jsonp.js"></script>
+    <script>
+        (function(){
+            var Util = (function(){
+                //本地存储 加prefixd的区别，localStorage在同一个域名里是共享的，所以加一个前缀防止改动localStorage里的key
+                var prefixd = 'html5_reader_';
+                var StorageGetter = function(key){
+                    return localStorage.getItem(prefixd + key);
+                }
+                var StorageSetter = function(key,value){
+                    return localStorage.setItem(key,value);
+                }
+
+                //jsonp方法
+                var getJSONP = function(url,callback){
+                    return $.jsonp({
+                        url:url,
+                        cache:true,
+                        callback:'duokan_fiction_chapter',
+                        success:function(result){
+                            var data = $.base64.decode(result);
+                            var json = decodeURIComponent(escape(data));
+                            callback(json);
+                        }
+                    })
+                }
+
+                //暴露方法，让外面可以调用
+                return{
+                    getJSONP:getJSONP,
+                    StorageGetter:StorageGetter,
+                    StorageSetter:StorageSetter
+                }
+            })();
+
+            var Dom = {
+                top_nav:$('#top_nav'),
+                bottom_nav:$('#bottom_nav'),
+                font_container: $('.font-container'),
+                font_button: $('#font-button'),
+                bk_container: $('.bk-container'),
+                bk_container_current: $('.bk-container-current'),
+                day_icon: $('#day_icon'),
+                night_icon: $('#night_icon')
+            }
+            var Win = $(window);
+            var Doc = $(document);
+            var readerModel;  //闭包内的全局方法
+            var readerUI;     //闭包内的全局方法
+
+            //本地存储字体大小
+            var RootContainer = $('#fiction_container');
+            var initFontSize = Util.StorageGetter('font_size');
+            initFontSize = parseInt(initFontSize);
+            if(!initFontSize){
+                initFontSize = 14;
+            }
+            RootContainer.css('font-size',initFontSize);
+
+            //本地存储背景颜色
+            var Body = $('body');
+            var initBackground = Util.StorageGetter('background');
+            if(!initBackground){
+                initBackground = '#f7eee5';
+            }
+            if(initBackground == '#283548'){
+                $('#night_icon').show();
+            }else{
+                $('#day_icon').show();
+            }
+            $('[data-background=" '+ initBackground +' "]').children('.bk-container-current').css('display', 'block');
+            Body.css('background',initBackground);
+
+            /*todo 入口函数*/
+            function main(){
+                readerModel = ReaderModel();
+                readerUI = ReaderBaseFrame(RootContainer);
+                readerModel.init(function(data){
+                    readerUI(data);
+                });
+                EventHanlder();
+            }
+
+            /*todo 实现和阅读器相关的数据交互的方法*/
+            function ReaderModel(){
+                var Chapter_id;
+                var ChapterTotal;
+                var init = function(UIcallback){
+                    getFictionInfo(function(){
+                        getCurChapterContent(Chapter_id,function(data){
+                            UIcallback && UIcallback(data);
+                        });
+                    })
+                }
+
+                //获取章节信息
+                var getFictionInfo = function(callback) {
+                    $.get('data/chapter.json',function(data){
+                        Chapter_id = Util.StorageGetter('last_chapter_id');
+                        if(Chapter_id == null)
+                        {
+                            Chapter_id = data.chapters[1].chapter_id;
+                        }
+                        ChapterTotal = data.chapters.length;
+                        callback && callback();
+                    },'json');
+                }
+
+                //获取文章内容
+                var getCurChapterContent = function(chapter_id,callback){
+                    $.get('data/data' + chapter_id + '.json',function(data){
+                       if(data.result == 0)
+                       {
+                            var url = data.jsonp;
+                           Util.getJSONP(url,function(data){
+                               callback && callback(data);
+                           });
+                       }
+                    },'json');
+                }
+
+                var prevChapter = function(UIcallback){
+                    Chapter_id = parseInt(Chapter_id,10);
+                    if(Chapter_id == 0)
+                    {
+                        alert('模拟数据到头了！程序猿正在改提示框！');
+                        return;
+                    }
+                    Chapter_id -= 1;
+                    getCurChapterContent(Chapter_id,UIcallback);
+                    Util.StorageSetter('last_chapter_id',Chapter_id);
+                }
+
+                var nextChapter = function(UIcallback){
+                    Chapter_id = parseInt(Chapter_id,10);
+                    if(Chapter_id == ChapterTotal-1)
+                    {
+                        alert('模拟数据到头了！程序猿正在改提示框！');
+                        return;
+                    }
+                    Chapter_id += 1;
+                    getCurChapterContent(Chapter_id,UIcallback);
+                    Util.StorageSetter('last_chapter_id', Chapter_id);
+                }
+                return{
+                    init:init,
+                    prevChapter: prevChapter,
+                    nextChapter: nextChapter
+                }
+            }
+
+            /*todo 渲染基本的UI结构*/
+            function ReaderBaseFrame(container){
+                function parseChapterData(jsonData){
+                    var jsonObj = JSON.parse(jsonData);
+                    var html = '<h4>' + jsonObj.t + '</h4>';
+                    for(var i = 0;i<jsonObj.p.length;i++)
+                    {
+                        html += '<p>' + jsonObj.p[i] + '</p>';
+                    }
+                    return html;
+                }
+
+                return function(data){
+                    container.html(parseChapterData(data));
+                }
+            }
+
+            /*todo 交互的事件绑定*/
+            function EventHanlder(){
+                $('#action_mid').click(function(){
+                    //用click不用 zepto的tap，在安卓4.0和新版浏览器后两个没区别，但click还能在pc端响应,tap不能
+                    if(Dom.top_nav.css('display') == 'none')
+                    {
+                        Dom.bottom_nav.show();
+                        Dom.top_nav.show();
+                    }else{
+                        Dom.bottom_nav.hide();
+                        Dom.top_nav.hide();
+                        Dom.font_container.hide();
+                        Dom.font_button.removeClass('current');
+                    }
+                });
+                Dom.font_button.click(function () {
+                    if (Dom.font_container.css('display') == 'none') {
+                        Dom.font_container.show();
+                        Dom.font_button.addClass('current');
+                    } else {
+                        Dom.font_container.hide();
+                        Dom.font_button.removeClass('current');
+                    }
+                });
+                $('#night-day-button').click(function () {
+                    //todo 触发背景切换事件
+                    if (Dom.day_icon.css('display') == 'none') {
+                        //黑变白
+                        Dom.day_icon.show();
+                        Dom.night_icon.hide();
+                        Dom.bk_container_current.css('display', 'none');
+                        $('#first_day').children('.bk-container-current').css('display', 'block');
+                        initBackground = '#f7eee5';
+                        Body.css('background', initBackground);
+                        Util.StorageSetter('background', initBackground);
+                    } else {
+                        //白变黑
+                        Dom.day_icon.hide();
+                        Dom.night_icon.show();
+                        Dom.bk_container_current.css('display', 'none');
+                        $('#last_night').children('.bk-container-current').css('display', 'block');
+                        initBackground = '#283548';
+                        Body.css('background', initBackground);
+                        Util.StorageSetter('background', initBackground);
+                    }
+                });
+                $('#large-font').click(function () {
+                    if (initFontSize > 20) {
+                        alert('字号不能更大了！程序猿正在改提示框！')
+                        return;
+                    }
+                    initFontSize += 1;
+                    RootContainer.css('font-size', initFontSize);
+                    Util.StorageSetter('font_size', initFontSize);
+                });
+                $('#small-font').click(function () {
+                    if (initFontSize < 12) {
+                        alert('字号不能更小了！程序猿正在改提示框！')
+                        return;
+                    }
+                    initFontSize -= 1;
+                    RootContainer.css('font-size', initFontSize);
+                    Util.StorageSetter('font_size', initFontSize);
+                });
+                Dom.bk_container.click(function () {
+                    if ($(this).children('.bk-container-current').css('display') == 'none') {
+                        Dom.bk_container_current.css('display', 'none');
+                        $(this).children('.bk-container-current').css('display', 'block');
+                        initBackground = $(this).attr('data-background');
+                        Body.css('background', initBackground);
+                        Util.StorageSetter('background', initBackground);
+                        if (initBackground == '#283548') {
+                            $('#night_icon').show();
+                            $('#day_icon').hide();
+                        } else {
+                            $('#night_icon').hide();
+                            $('#day_icon').show();
+                        }
+                    }
+                });
+                Win.scroll(function(){
+                    Dom.bottom_nav.hide();
+                    Dom.top_nav.hide();
+                    Dom.font_container.hide();
+                    Dom.font_button.removeClass('current');
+                });
+                $('#prev_button').click(function(data){
+                    readerModel.prevChapter(function(data){
+                        readerUI(data);
+                        $("body").scrollTop(0);
+                    });
+                });
+                $('#next_button').click(function (data) {
+                    readerModel.nextChapter(function (data) {
+                        readerUI(data);
+                        $("body").scrollTop(0);
+                    });
+                });
+            }
+
+            main();//调用入口函数
+
+        })();//闭包不影响全局
+    </script>
+</body>
+</html>
